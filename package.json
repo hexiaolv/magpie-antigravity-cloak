@@ -4,6 +4,9 @@
   "description": "Antigravity 429 修复中间件：混淆请求里的计费头标记与 Claude Code / Agent SDK 指纹",
   "type": "module",
   "license": "MIT",
+  "scripts": {
+    "test": "node test.mjs"
+  },
   "keywords": ["magpie", "middleware", "antigravity"],
   "magpie": {
     "middleware": "./antigravity-cloak.middleware.js",
