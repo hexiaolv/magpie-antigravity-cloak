@@ -46,12 +46,26 @@ Antigravity 上游**按请求文本里的特定指纹字符串拦截**，并统�
 
 ## 安装
 
+两种方式任选其一：
+
+### 方式一：magpie 插件页面直接装（推荐）
+
+打开 magpie 的 **插件** 页 → 切到 **发现** 标签 → 拉到最底部 **「已有想装的？」** 输入框，填入仓库地址后点 **安装**：
+
+```
+https://github.com/hexiaolv/magpie-antigravity-cloak
+```
+
+### 方式二：clone 到本地再装
+
 ```sh
 git clone https://github.com/hexiaolv/magpie-antigravity-cloak.git
 cd magpie-antigravity-cloak
 npm test   # 可选：先跑一遍单测确认环境正常
 magpie plugin add "$(pwd)"
 ```
+
+本地安装的好处：插件文件每秒热加载，改 `antigravity-cloak.middleware.js` 立即生效，方便自定义词表或调试。
 
 > 注意：magpie 不识别插件短名，`options` 等操作都要用完整路径。
 
