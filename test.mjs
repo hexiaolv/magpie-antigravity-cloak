@@ -194,4 +194,120 @@ const untouched = (after, w) =>
   assert(count === 2, `重叠匹配不漏（插了 ${count} 处，应为 2）`)
 }
 
+// 13. modelFilter：字符串匹配与未匹配放行
+{
+  const sys = `You are ${W.cc}.`
+  // 命中 antigravity
+  const hit = onRequest(
+    { model: "antigravity/gemini-3.7-flash", system: sys, messages: [] },
+    { options: { modelFilter: "antigravity" } }
+  )
+  cloaked(sys, hit.system, W.cc)
+
+  // 未命中 antigravity，直接放行
+  const miss = onRequest(
+    { model: "anthropic/claude-3-7-sonnet", system: sys, messages: [] },
+    { options: { modelFilter: "antigravity" } }
+  )
+  untouched(miss.system, W.cc)
+  assert(miss.system === sys, "modelFilter: 未命中时系统提示词保持原文")
+}
+
+// 14. modelFilter：支持正则模式字符串与数组
+{
+  const sys = `You are ${W.cc}.`
+  // 数组与正则字符串支持
+  const hit = onRequest(
+    { model: "google-antigravity/model-v1", system: sys, messages: [] },
+    { options: { modelFilter: ["/^google-antigravity\\//i", "custom-target"] } }
+  )
+  cloaked(sys, hit.system, W.cc)
+
+  const miss = onRequest(
+    { model: "openai/gpt-4o", system: sys, messages: [] },
+    { options: { modelFilter: ["antigravity", "custom-target"] } }
+  )
+  untouched(miss.system, W.cc)
+}
+
+// 15. cloakChar 自定义混淆字符（如 ZWNJ ‌）
+{
+  const ZWNJ = "‌"
+  const sys = `You are ${W.cc}.`
+  const out = onRequest(
+    { system: sys, messages: [] },
+    { options: { cloakChar: ZWNJ } }
+  )
+  assert(!out.system.includes(ZW), "cloakChar: 不包含默认零宽空格")
+  assert(out.system.includes(W.cc[0] + ZWNJ + W.cc.slice(1)), "cloakChar: 成功插入自定义 ZWNJ")
+  assert(out.system.replaceAll(ZWNJ, "") === sys, "cloakChar: 去除自定义混淆字符可完整还原")
+}
+
+// 16. debug 选项：收集并在控制台输出统计
+{
+  const sys = `You are ${W.cc}, using ${W.sdk}.`
+  let logOutput = ""
+  const originalLog = console.log
+  console.log = (msg) => { logOutput += msg + "\n" }
+  try {
+    onRequest(
+      { model: "antigravity/test-model", system: sys, messages: [] },
+      { options: { debug: true } }
+    )
+  } finally {
+    console.log = originalLog
+  }
+  assert(logOutput.includes("[antigravity-cloak]"), "debug: 打印了插件前缀")
+  assert(logOutput.includes('model: "antigravity/test-model"'), "debug: 打印了模型名称")
+  assert(logOutput.includes("cloaked: 2 match(es)"), "debug: 准确统计混淆命中了 2 次")
+}
+
+// 17. 词表首尾空格自动 trim 清洗
+{
+  const sys = `Trigger: custom-keyword.`
+  const out = onRequest(
+    { system: sys, messages: [] },
+    { options: { extraWords: ["  custom-keyword  "] } }
+  )
+  assert(out.system.includes("c" + ZW + "ustom-keyword"), "extraWords: 包含首尾空格的自定义词自动 trim 并成功混淆")
+}
+
+// 18. Unicode Code Point 安全切分（如 Emoji / 代理对敏感词）
+{
+  const emojiWord = "🤖Bot"
+  const sys = `Hello ${emojiWord}!`
+  const out = onRequest(
+    { system: sys, messages: [] },
+    { options: { extraWords: [emojiWord] } }
+  )
+  // 应该在完整 Emoji "🤖" 之后插入 ZW，而不是破坏代理对
+  assert(out.system.includes("🤖" + ZW + "Bot"), "Unicode Code Point: 完整 Emoji 后安全插入混淆字符")
+}
+
+// 19. system_instruction 下划线字段支持
+{
+  const sys = `You are ${W.cc}.`
+  const out = onRequest(
+    { system_instruction: { parts: [{ text: sys }] } },
+    { options: {} }
+  )
+  assert(out.system_instruction.parts[0].text.includes(W.cc[0] + ZW + W.cc.slice(1)), "system_instruction: 原生下划线字段被混淆")
+}
+
+// 20. modelFilter 通配符 * 支持
+{
+  const sys = `You are ${W.cc}.`
+  const hitGlob = onRequest(
+    { model: "antigravity/gemini-3.7-flash", system: sys, messages: [] },
+    { options: { modelFilter: "antigravity/*" } }
+  )
+  cloaked(sys, hitGlob.system, W.cc)
+
+  const missGlob = onRequest(
+    { model: "openai/gpt-4o", system: sys, messages: [] },
+    { options: { modelFilter: "antigravity/*" } }
+  )
+  untouched(missGlob.system, W.cc)
+}
+
 console.log(process.exitCode ? "有失败" : "全部通过")
