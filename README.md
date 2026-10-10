@@ -72,7 +72,7 @@ magpie plugin add "$(pwd)"
 ## 配置（可选）
 
 ```sh
-magpie plugin options "$(pwd)" '{"extraWords": ["自定义词"], "off": false, "deep": false}'
+magpie plugin options "$(pwd)" '{"extraWords": ["自定义词"], "off": false, "deep": false, "modelFilter": "antigravity", "debug": false}'
 ```
 
 | 选项 | 默认 | 说明 |
@@ -80,6 +80,9 @@ magpie plugin options "$(pwd)" '{"extraWords": ["自定义词"], "off": false, "
 | `extraWords` | `[]` | 追加自定义敏感词（纯文本，大小写不敏感） |
 | `off` | `false` | 设为 `true` 时完全放行，不混淆 |
 | `deep` | `false` | 设为 `true` 时深度混淆整个请求体（用户消息、tools、thinking 也一起），覆盖面更大但更激进，可能影响模型效果 |
+| `modelFilter` | `"antigravity"` | 目标渠道/模型匹配过滤（支持子串、正则字符串如 `"/^antigravity/i"`、或字符串数组），未匹配直接原样放行，避免干扰其他 Provider |
+| `debug` | `false` | 设为 `true` 时在控制台输出混淆匹配词、命中次数及耗时日志，方便调试 |
+| `cloakChar` | `"​"` | 自定义混淆字符（默认零宽空格 `U+200B`，可选 `U+200C` ZWNJ 等） |
 
 默认词表：`x-anthropic-billing-header`、`Claude Agent SDK`、`Claude Code`、`Anthropic's official CLI`、`system-conventions`、`system_conventions`、`system-directive`、`system_directive`、`RFC 2119`。
 
@@ -91,7 +94,7 @@ magpie plugin options "$(pwd)" '{"extraWords": ["自定义词"], "off": false, "
 npm test
 ```
 
-跑 19 组单测（各协议 system 形态、深度模式、幂等、还原等价、base64 跳过、正则特殊字符、重叠匹配等）。
+跑 23 组单测（各协议 system 形态、深度模式、幂等、还原等价、base64 跳过、正则特殊字符、重叠匹配、modelFilter 精准匹配/放行、cloakChar 自定义混淆字符、debug 统计日志等）。
 
 端到端验证（用真实 Claude Code 打 magpie，因为手工 curl 复现不出计费头触发词）：
 
