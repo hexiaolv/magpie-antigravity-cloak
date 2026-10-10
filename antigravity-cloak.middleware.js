@@ -64,22 +64,24 @@ const regexCache = new Map()
 
 function buildNeedles(extra, cloakChar = DEFAULT_CLOAK_CHAR) {
   const words = DEFAULT_WORDS.concat(Array.isArray(extra) ? extra : [])
-  // 去掉已含混淆字符或不可见字符的（用户误贴混淆文本），去重，按长度从长到短，
+  // 清理首尾空白，去掉已含混淆字符或不可见字符的词（如用户误贴混淆文本），去重，按长度从长到短，
   // 避免短词先匹配破坏长词
   const seen = new Set()
   const out = []
   for (const w of words) {
-    if (!w || typeof w !== "string" || w.length < 2) continue
+    if (!w || typeof w !== "string") continue
+    const trimmed = w.trim()
+    if (trimmed.length < 2) continue
     let hasInvisible = false
-    for (let i = 0; i < w.length; i++) {
-      const ch = w[i]
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i]
       if (ch === cloakChar || INVISIBLE_CHARS.has(ch)) {
         hasInvisible = true
         break
       }
     }
     if (hasInvisible) continue
-    const k = w.toLowerCase()
+    const k = trimmed.toLowerCase()
     if (seen.has(k)) continue
     seen.add(k)
     out.push(k)
@@ -116,7 +118,9 @@ function cloakText(text, regex, cloakChar, stats) {
       stats.count++
       stats.matches.add(m.toLowerCase())
     }
-    return m[0] + cloakChar + m.slice(1)
+    // Unicode Code Point 安全切分，防止 Emoji 或双字节字符代理对被截断
+    const firstChar = String.fromCodePoint(m.codePointAt(0))
+    return firstChar + cloakChar + m.slice(firstChar.length)
   })
 }
 
@@ -164,16 +168,25 @@ function isModelMatched(model, filter) {
     if (!rule) return false
     if (rule instanceof RegExp) return rule.test(model)
     if (typeof rule === "string") {
+      const trimmedRule = rule.trim()
+      if (!trimmedRule) return false
       // 支持正则字符串格式，如 "/^antigravity/i"
-      if (rule.startsWith("/") && rule.lastIndexOf("/") > 0) {
-        const lastSlash = rule.lastIndexOf("/")
-        const pattern = rule.slice(1, lastSlash)
-        const flags = rule.slice(lastSlash + 1)
+      if (trimmedRule.startsWith("/") && trimmedRule.lastIndexOf("/") > 0) {
+        const lastSlash = trimmedRule.lastIndexOf("/")
+        const pattern = trimmedRule.slice(1, lastSlash)
+        const flags = trimmedRule.slice(lastSlash + 1)
         try {
           return new RegExp(pattern, flags).test(model)
         } catch (_) {}
       }
-      return model.toLowerCase().includes(rule.toLowerCase())
+      // 支持通配符格式，如 "antigravity/*" 或 "*gemini*"
+      if (trimmedRule.includes("*")) {
+        const escaped = escapeRegExp(trimmedRule).replace(/\\\*/g, ".*")
+        try {
+          return new RegExp(`^${escaped}$`, "i").test(model)
+        } catch (_) {}
+    }
+      return model.toLowerCase().includes(trimmedRule.toLowerCase())
     }
     return false
   }
@@ -209,7 +222,7 @@ export function onRequest(body, ctx) {
     cloakDeep(body, regex, cloakChar, stats)
   } else {
     // 默认：只混淆系统提示词（cli-proxy-api 的保守行为，模型输出质量影响最小）
-    for (const key of ["system", "systemInstruction", "instructions"]) {
+    for (const key of ["system", "systemInstruction", "system_instruction", "instructions"]) {
       if (body[key] != null) body[key] = cloakSystemField(body[key], regex, cloakChar, stats)
     }
     if (Array.isArray(body.messages)) {
